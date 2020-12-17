@@ -3,6 +3,7 @@
 declare module '@pnpm/registry-mock' {
   export function getIntegrity (pkgName: string, pkgVersion: string): string
   export function addDistTag (opts: {package: string, version: string, distTag: string}): Promise<void>
+  export const REGISTRY_MOCK_PORT: string
 }
 
 declare module 'cli-columns' {
@@ -10,27 +11,14 @@ declare module 'cli-columns' {
   export = cliColumns;
 }
 
-// TODO: Has @types declaration
-declare module 'is-ci' {
-  const isCI: boolean;
-  export = isCI;
-}
-
-// TODO: Has @types declaration
-declare module 'is-windows' {
-  function isWindows(): boolean;
-  export = isWindows;
-}
-
 declare module 'normalize-registry-url' {
   function normalizeRegistryUrl (registry: string): string
   export = normalizeRegistryUrl;
 }
 
-// TODO: Has @types declaration
-declare module 'pretty-time' {
-  function prettyTime (time: [number, number]): string;
-  export = prettyTime;
+declare module 'path-name' {
+  const pathname: string;
+  export = pathname;
 }
 
 declare module 'read-ini-file' {
@@ -38,12 +26,26 @@ declare module 'read-ini-file' {
   export = readIniFile;
 }
 
-declare module 'tape-promise' {
-  import tape = require('tape')
-  export = tapePromise;
+declare module 'right-pad' {
+  function rightPad (txt: string, size: number): string;
+  export = rightPad;
+}
 
-  function tapePromise(tape: any): (name: string, cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (name: string, opts: tape.TestOptions, cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (opts: tape.TestOptions, cb: tape.TestCase) => void;
+declare module 'semver-utils' {
+  export function parseRange (range: string): Array<{
+    semver?: string,
+    operator: string,
+    major?: string,
+    minor?: string,
+    patch?: string,
+  }>
+}
+
+declare module 'split-cmd' {
+  export function split (cmd: string): string[]
+  export function splitToObject (cmd: string): { command: string, args: string[] }
+}
+
+declare namespace NodeJS.Module {
+  function _nodeModulePaths(from: string): string[]
 }

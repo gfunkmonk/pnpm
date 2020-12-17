@@ -1,8 +1,8 @@
-import { readExactImporterManifest } from '@pnpm/read-importer-manifest'
-import { ImporterManifest } from '@pnpm/types'
+import { readExactProjectManifest } from '@pnpm/read-project-manifest'
+import { ProjectManifest } from '@pnpm/types'
+import path = require('path')
 import fastGlob = require('fast-glob')
 import pFilter = require('p-filter')
-import path = require('path')
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',
@@ -11,25 +11,23 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-declare namespace findPkgs {
-  interface Options {
-    ignore?: string[]
-    includeRoot?: boolean
-    patterns?: string[]
-  }
-
-  interface WorkspacePackage {
-    manifest: ImporterManifest
-    path: string
-
-    writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
-  }
+export interface Options {
+  ignore?: string[]
+  includeRoot?: boolean
+  patterns?: string[]
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.WorkspacePackage[]> {
-  opts = opts || {}
+export interface Project {
+  dir: string
+  manifest: ProjectManifest
+
+  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
+}
+
+export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {
+  opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
-  globOpts.ignore = opts.ignore || DEFAULT_IGNORE
+  globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)
 
@@ -56,9 +54,9 @@ async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkg
       async manifestPath => {
         try {
           return {
-            path: path.dirname(manifestPath),
-            ...await readExactImporterManifest(manifestPath),
-          } as findPkgs.WorkspacePackage
+            dir: path.dirname(manifestPath),
+            ...await readExactProjectManifest(manifestPath),
+          } as Project
         } catch (err) {
           if (err.code === 'ENOENT') {
             return null!
@@ -66,7 +64,7 @@ async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkg
           throw err
         }
       }),
-    Boolean,
+    Boolean
   )
 }
 
@@ -87,8 +85,3 @@ function normalizePatterns (patterns: readonly string[]) {
   }
   return normalizedPatterns
 }
-
-// for backward compatibility
-findPkgs['default'] = findPkgs // tslint:disable-line
-
-export = findPkgs

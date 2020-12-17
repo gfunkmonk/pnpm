@@ -1,0 +1,85 @@
+{
+  "name": "@pnpm/plugin-commands-rebuild",
+  "version": "2.2.9",
+  "description": "Commands for rebuilding dependencies",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.16"
+  },
+  "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "registry-mock": "registry-mock",
+    "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-rebuild/coverage ts-node packages/plugin-commands-rebuild/test --type-check",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7777 pnpm run test:e2e",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild",
+  "keywords": [
+    "pnpm",
+    "rebuild"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-rebuild#readme",
+  "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:2.2.11",
+    "@pnpm/logger": "^3.2.3",
+    "@pnpm/plugin-commands-rebuild": "link:",
+    "@pnpm/prepare": "workspace:0.0.16",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "^0.27.32",
+    "@types/semver": "^7.3.4",
+    "@types/sinon": "^9.0.8",
+    "execa": "^4.1.0",
+    "path-exists": "^4.0.0",
+    "sinon": "^9.2.1",
+    "write-yaml-file": "^4.1.1"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:0.4.40",
+    "@pnpm/common-cli-options-help": "workspace:0.2.0",
+    "@pnpm/config": "workspace:11.9.0",
+    "@pnpm/constants": "workspace:4.1.0",
+    "@pnpm/core-loggers": "workspace:5.0.2",
+    "@pnpm/find-workspace-packages": "workspace:2.3.26",
+    "@pnpm/get-context": "workspace:3.3.1",
+    "@pnpm/lifecycle": "workspace:9.6.2",
+    "@pnpm/link-bins": "workspace:5.3.20",
+    "@pnpm/lockfile-utils": "workspace:2.0.20",
+    "@pnpm/lockfile-walker": "workspace:3.0.7",
+    "@pnpm/modules-yaml": "workspace:8.0.5",
+    "@pnpm/normalize-registries": "workspace:1.0.5",
+    "@pnpm/pkgid-to-filename": "^3.0.0",
+    "@pnpm/sort-packages": "workspace:1.0.15",
+    "@pnpm/store-connection-manager": "workspace:0.3.50",
+    "@pnpm/store-controller-types": "workspace:9.2.0",
+    "@pnpm/types": "workspace:6.3.1",
+    "@zkochan/npm-package-arg": "^1.0.2",
+    "camelcase-keys": "^6.2.2",
+    "dependency-path": "workspace:5.0.6",
+    "graph-sequencer": "2.0.0",
+    "load-json-file": "^6.2.0",
+    "mem": "^8.0.0",
+    "p-limit": "^3.0.2",
+    "ramda": "^0.27.1",
+    "read-ini-file": "^3.0.0",
+    "render-help": "^1.0.1",
+    "run-groups": "^3.0.1",
+    "semver": "^7.3.2"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^3.1.0"
+  },
+  "funding": "https://opencollective.com/pnpm"
+}

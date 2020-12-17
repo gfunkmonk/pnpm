@@ -1,20 +1,21 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "2.0.2",
+  "version": "5.2.5",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "engines": {
-    "node": ">=10"
+    "node": ">=10.16"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc && pnpm run lint",
-    "prepublishOnly": "pnpm run tsc"
+    "lint": "eslint -c ../../eslint.json src/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/build-modules",
   "keywords": [
@@ -27,23 +28,23 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/build-modules#readme",
   "dependencies": {
-    "@pnpm/constants": "workspace:2.0.0",
-    "@pnpm/core-loggers": "workspace:4.0.0",
-    "@pnpm/lifecycle": "workspace:7.0.1",
-    "@pnpm/link-bins": "5.0.1",
-    "@pnpm/read-package-json": "workspace:3.0.0",
-    "@pnpm/store-controller-types": "workspace:4.0.0",
-    "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/constants": "workspace:4.1.0",
+    "@pnpm/core-loggers": "workspace:5.0.2",
+    "@pnpm/lifecycle": "workspace:9.6.2",
+    "@pnpm/link-bins": "workspace:5.3.20",
+    "@pnpm/read-package-json": "workspace:3.1.8",
+    "@pnpm/store-controller-types": "workspace:9.2.0",
+    "@pnpm/types": "workspace:6.3.1",
     "graph-sequencer": "2.0.0",
-    "ramda": "0.26.1",
-    "run-groups": "2.0.1"
+    "ramda": "^0.27.1",
+    "run-groups": "^3.0.1"
   },
   "devDependencies": {
     "@pnpm/build-modules": "link:",
-    "@pnpm/logger": "3.1.0",
-    "@types/ramda": "0.26.29",
-    "rimraf": "3.0.0"
-  }
+    "@pnpm/logger": "^3.2.3",
+    "@types/ramda": "^0.27.32"
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

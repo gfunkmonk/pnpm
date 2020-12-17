@@ -1,17 +1,17 @@
 import { PackageNode } from 'dependencies-hierarchy'
-import R = require('ramda')
 import { PackageDependencyHierarchy } from './types'
+import R = require('ramda')
 
 const sortPackages = R.sortBy(R.prop('name'))
 
 export default async function (
   pkgs: PackageDependencyHierarchy[],
   opts: {
-    long: boolean,
-    depth: number,
-    alwaysPrintRootPackage: boolean,
-    search: boolean,
-  },
+    long: boolean
+    depth: number
+    alwaysPrintRootPackage: boolean
+    search: boolean
+  }
 ) {
   return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).join('\n')
 }
@@ -19,21 +19,21 @@ export default async function (
 function renderParseableForPackage (
   pkg: PackageDependencyHierarchy,
   opts: {
-    long: boolean,
-    depth: number,
-    alwaysPrintRootPackage: boolean,
-    search: boolean,
-  },
+    long: boolean
+    depth: number
+    alwaysPrintRootPackage: boolean
+    search: boolean
+  }
 ) {
   const pkgs = sortPackages(
     flatten(
       [
-        ...(pkg.optionalDependencies || []),
-        ...(pkg.dependencies || []),
-        ...(pkg.devDependencies || []),
-        ...(pkg.unsavedDependencies || []),
-      ],
-    ),
+        ...(pkg.optionalDependencies ?? []),
+        ...(pkg.dependencies ?? []),
+        ...(pkg.devDependencies ?? []),
+        ...(pkg.unsavedDependencies ?? []),
+      ]
+    )
   )
   if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
   if (opts.long) {
@@ -58,7 +58,7 @@ function renderParseableForPackage (
 interface PackageInfo {name: string, version: string, path: string}
 
 function flatten (
-  nodes: PackageNode[],
+  nodes: PackageNode[]
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {

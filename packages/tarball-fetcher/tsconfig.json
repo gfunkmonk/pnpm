@@ -1,10 +1,31 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../fetch"
+    },
+    {
+      "path": "../fetcher-base"
+    },
+    {
+      "path": "../fetching-types"
+    }
   ]
 }

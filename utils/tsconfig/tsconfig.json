@@ -1,14 +1,16 @@
 {
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
+    "composite": true,
     "declaration": true,
+    "esModuleInterop": true,
     "module": "commonjs",
     "moduleResolution": "node",
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "preserveConstEnums": true,
     "removeComments": false,
-    "sourceMap": false,
+    "sourceMap": true,
     "strict": true,
     "suppressImplicitAnyIndexErrors": true,
     "target": "es2019"

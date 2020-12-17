@@ -4,8 +4,7 @@ import './fs/gracefulify'
 export { PackageManifest } from '@pnpm/types'
 export * from './api'
 
-export { ImportersOptions } from './getContext'
+export { ProjectOptions } from '@pnpm/get-context'
 export { InstallOptions } from './install/extendInstallOptions'
-export { RebuildOptions } from './rebuild/extendRebuildOptions'
 
-export { LocalPackages } from '@pnpm/resolver-base'
+export { WorkspacePackages } from '@pnpm/resolver-base'

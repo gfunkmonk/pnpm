@@ -1,43 +1,48 @@
-///<reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../typings/index.d.ts"/>
 import resolveFromLocal from '@pnpm/local-resolver'
 import path = require('path')
-import test = require('tape')
 
-test('resolve directory', async t => {
-  const resolveResult = await resolveFromLocal({ pref: '..' }, { prefix: __dirname })
-  t.equal(resolveResult!.id, 'link:..')
-  t.equal(resolveResult!.normalizedPref, 'link:..')
-  t.equal(resolveResult!['package']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
-  t.end()
+test('resolve directory', async () => {
+  const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('link:..')
+  expect(resolveResult!.normalizedPref).toEqual('link:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
-test('resolve directory specified using the file: protocol', async t => {
-  const resolveResult = await resolveFromLocal({ pref: 'file:..' }, { prefix: __dirname })
-  t.equal(resolveResult!.id, 'link:..')
-  t.equal(resolveResult!.normalizedPref, 'link:..')
-  t.equal(resolveResult!['package']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
-  t.end()
+test('resolve workspace directory', async () => {
+  const resolveResult = await resolveFromLocal({ pref: 'workspace:..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('link:..')
+  expect(resolveResult!.normalizedPref).toEqual('link:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
-test('resolve directoty specified using the link: protocol', async t => {
-  const resolveResult = await resolveFromLocal({ pref: 'link:..' }, { prefix: __dirname })
-  t.equal(resolveResult!.id, 'link:..')
-  t.equal(resolveResult!.normalizedPref, 'link:..')
-  t.equal(resolveResult!['package']!.name, '@pnpm/local-resolver')
-  t.equal(resolveResult!.resolution!['directory'], '..')
-  t.equal(resolveResult!.resolution!['type'], 'directory')
-  t.end()
+test('resolve directory specified using the file: protocol', async () => {
+  const resolveResult = await resolveFromLocal({ pref: 'file:..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('link:..')
+  expect(resolveResult!.normalizedPref).toEqual('link:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
-test('resolve file', async t => {
+test('resolve directoty specified using the link: protocol', async () => {
+  const resolveResult = await resolveFromLocal({ pref: 'link:..' }, { projectDir: __dirname })
+  expect(resolveResult!.id).toEqual('link:..')
+  expect(resolveResult!.normalizedPref).toEqual('link:..')
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.resolution['directory']).toEqual('..')
+  expect(resolveResult!.resolution['type']).toEqual('directory')
+})
+
+test('resolve file', async () => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { prefix: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
 
-  t.deepEqual(resolveResult, {
+  expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
     normalizedPref: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
@@ -46,18 +51,16 @@ test('resolve file', async t => {
     },
     resolvedVia: 'local-filesystem',
   })
-
-  t.end()
 })
 
-test("resolve file when lockfile directory differs from the package's dir", async t => {
+test("resolve file when lockfile directory differs from the package's dir", async () => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocal(wantedDependency, {
-    lockfileDirectory: path.join(__dirname, '..'),
-    prefix: __dirname,
+    lockfileDir: path.join(__dirname, '..'),
+    projectDir: __dirname,
   })
 
-  t.deepEqual(resolveResult, {
+  expect(resolveResult).toEqual({
     id: 'file:test/pnpm-local-resolver-0.1.1.tgz',
     normalizedPref: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
@@ -66,15 +69,13 @@ test("resolve file when lockfile directory differs from the package's dir", asyn
     },
     resolvedVia: 'local-filesystem',
   })
-
-  t.end()
 })
 
-test('resolve tarball specified with file: protocol', async t => {
+test('resolve tarball specified with file: protocol', async () => {
   const wantedDependency = { pref: 'file:./pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { prefix: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
 
-  t.deepEqual(resolveResult, {
+  expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
     normalizedPref: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
@@ -83,43 +84,38 @@ test('resolve tarball specified with file: protocol', async t => {
     },
     resolvedVia: 'local-filesystem',
   })
-
-  t.end()
 })
 
-test('fail when resolving tarball specified with the link: protocol', async t => {
+test('fail when resolving tarball specified with the link: protocol', async () => {
   try {
     const wantedDependency = { pref: 'link:./pnpm-local-resolver-0.1.1.tgz' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { prefix: __dirname })
-    t.fail()
+    await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+    fail()
   } catch (err) {
-    t.ok(err)
-    t.equal(err.code, 'ERR_PNPM_NOT_PACKAGE_DIRECTORY')
-    t.end()
+    expect(err).toBeDefined()
+    expect(err.code).toEqual('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
   }
 })
 
-test('fail when resolving from not existing directory', async t => {
+test('fail when resolving from not existing directory', async () => {
   try {
     const wantedDependency = { pref: 'link:./dir-does-not-exist' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { prefix: __dirname })
-    t.fail()
+    await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+    fail()
   } catch (err) {
-    t.ok(err)
-    t.equal(err.code, 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND')
-    t.end()
+    expect(err).toBeDefined()
+    expect(err.code).toEqual('ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND')
   }
 })
 
-test('throw error when the path: protocol is used', async t => {
+test('throw error when the path: protocol is used', async () => {
   try {
-    await resolveFromLocal({ pref: 'path:..' }, { prefix: __dirname })
-    t.fail()
+    await resolveFromLocal({ pref: 'path:..' }, { projectDir: __dirname })
+    fail()
   } catch (err) {
-    t.ok(err)
-    t.equal(err.code, 'ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
-    t.equal(err.pref, 'path:..')
-    t.equal(err.protocol, 'path:')
-    t.end()
+    expect(err).toBeDefined()
+    expect(err.code).toEqual('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
+    expect(err.pref).toEqual('path:..')
+    expect(err.protocol).toEqual('path:')
   }
 })

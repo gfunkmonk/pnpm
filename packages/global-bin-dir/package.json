@@ -1,0 +1,41 @@
+{
+  "name": "@pnpm/global-bin-dir",
+  "version": "1.2.5",
+  "description": "Finds a directory that is in PATH and we have permission to write to i",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.16"
+  },
+  "scripts": {
+    "lint": "eslint -c ../../eslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "_test": "jest"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir",
+  "keywords": [
+    "pnpm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/global-bin-dir#readme",
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "@pnpm/error": "workspace:^1.4.0",
+    "can-write-to-dir": "^1.0.0",
+    "path-name": "^1.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/global-bin-dir": "link:",
+    "is-windows": "^1.0.2"
+  }
+}

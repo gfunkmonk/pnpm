@@ -1,12 +1,12 @@
 import { DependenciesField } from './misc'
-import { ImporterManifest, PackageManifest } from './package'
+import { PackageManifest, ProjectManifest } from './package'
 
 export type LogBase = {
-  level: 'debug' | 'error';
+  level: 'debug' | 'error'
 } | {
-  level: 'info' | 'warn';
-  prefix: string;
-  message: string;
+  level: 'info' | 'warn'
+  prefix: string
+  message: string
 }
 
 export type IncludedDependencies = {
@@ -15,5 +15,5 @@ export type IncludedDependencies = {
 
 export interface ReadPackageHook {
   (pkg: PackageManifest): PackageManifest
-  (pkg: ImporterManifest): ImporterManifest
+  (pkg: ProjectManifest): ProjectManifest
 }

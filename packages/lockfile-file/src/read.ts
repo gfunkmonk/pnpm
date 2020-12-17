@@ -1,56 +1,94 @@
-
 import {
-  CURRENT_LOCKFILE,
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
-import readYamlFile from 'read-yaml-file'
 import { LockfileBreakingChangeError } from './errors'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import logger from './logger'
+import yaml = require('js-yaml')
+import path = require('path')
+import stripBom = require('strip-bom')
+import fs = require('mz/fs')
 
 export async function readCurrentLockfile (
+  virtualStoreDir: string,
+  opts: {
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+  }
+): Promise<Lockfile | null> {
+  const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
+  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
+}
+
+export function readWantedLockfileAndAutofixConflicts (
   pkgPath: string,
   opts: {
-    wantedVersion?: number,
-    ignoreIncompatible: boolean,
-  },
-): Promise<Lockfile | null> {
-  const lockfilePath = path.join(pkgPath, CURRENT_LOCKFILE)
-  return _read(lockfilePath, pkgPath, opts)
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+  }
+): Promise<{
+    lockfile: Lockfile | null
+    hadConflicts: boolean
+  }> {
+  const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
+  return _read(lockfilePath, pkgPath, { ...opts, autofixMergeConflicts: true })
 }
 
 export async function readWantedLockfile (
   pkgPath: string,
   opts: {
-    wantedVersion?: number,
-    ignoreIncompatible: boolean,
-  },
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+  }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  return _read(lockfilePath, pkgPath, opts)
+  return (await _read(lockfilePath, pkgPath, opts)).lockfile
 }
 
 async function _read (
   lockfilePath: string,
   prefix: string,
   opts: {
-    wantedVersion?: number,
-    ignoreIncompatible: boolean,
-  },
-): Promise<Lockfile | null> {
-  let lockfile
+    autofixMergeConflicts?: boolean
+    wantedVersion?: number
+    ignoreIncompatible: boolean
+  }
+): Promise<{
+    lockfile: Lockfile | null
+    hadConflicts: boolean
+  }> {
+  let lockfileRawContent
   try {
-    lockfile = await readYamlFile<Lockfile>(lockfilePath)
+    lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
-    return null
+    return {
+      lockfile: null,
+      hadConflicts: false,
+    }
   }
-  // tslint:disable:no-string-literal
+  let lockfile: Lockfile
+  let hadConflicts!: boolean
+  try {
+    lockfile = yaml.safeLoad(lockfileRawContent) as Lockfile
+    hadConflicts = false
+  } catch (err) {
+    if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
+      throw err
+    }
+    hadConflicts = true
+    lockfile = autofixMergeConflicts(lockfileRawContent)
+    logger.info({
+      message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
+      prefix: path.dirname(lockfilePath),
+    })
+  }
+  /* eslint-disable @typescript-eslint/dot-notation */
   if (typeof lockfile?.['specifiers'] !== 'undefined') {
     lockfile.importers = {
       '.': {
@@ -66,7 +104,7 @@ async function _read (
     }
   }
   if (lockfile) {
-    // tslint:enable:no-string-literal
+    /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || Math.floor(lockfile.lockfileVersion) === Math.floor(opts.wantedVersion)) {
       if (typeof opts.wantedVersion === 'number' && lockfile.lockfileVersion > opts.wantedVersion) {
         logger.warn({
@@ -75,7 +113,7 @@ async function _read (
           prefix,
         })
       }
-      return lockfile
+      return { lockfile, hadConflicts }
     }
   }
   if (opts.ignoreIncompatible) {
@@ -83,7 +121,7 @@ async function _read (
       message: `Ignoring not compatible lockfile at ${lockfilePath}`,
       prefix,
     })
-    return null
+    return { lockfile: null, hadConflicts: false }
   }
   throw new LockfileBreakingChangeError(lockfilePath)
 }
@@ -91,8 +129,8 @@ async function _read (
 export function createLockfileObject (
   importerIds: string[],
   opts: {
-    lockfileVersion: number,
-  },
+    lockfileVersion: number
+  }
 ) {
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = {

@@ -1,27 +1,30 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { LifecycleLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import rimraf = require('@zkochan/rimraf')
-import loadJsonFile = require('load-json-file')
-import path = require('path')
-import exists = require('path-exists')
-import PATH = require('path-name')
-import sinon = require('sinon')
+import * as path from 'path'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
+import { prepareEmpty } from '@pnpm/prepare'
+import { LifecycleLog } from '@pnpm/core-loggers'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
+import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
+import exists = require('path-exists')
+import PATH = require('path-name')
+import sinon = require('sinon')
+import tape = require('tape')
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example'],
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
+  )
 
   {
     t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js'))
@@ -39,7 +42,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   // testing that the packages are not installed even though they are in lockfile
   // and that their scripts are not tried to be executed
 
-  await install(manifest, await testDefaults({ production: true }))
+  await install(manifest, await testDefaults({ fastUnpack: false, production: true }))
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -53,11 +56,29 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   t.ok(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to lockfile')
 })
 
+test('run pre/postinstall scripts, when PnP is used and no symlinks', async (t: tape.Test) => {
+  prepareEmpty(t)
+  await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example'],
+    await testDefaults({
+      fastUnpack: false,
+      enablePnp: true,
+      symlink: false,
+      targetDependenciesField: 'devDependencies',
+    })
+  )
+
+  const pkgDir = 'node_modules/.pnpm/pre-and-postinstall-scripts-example@1.0.0/node_modules/pre-and-postinstall-scripts-example'
+  t.notOk(await exists(path.resolve(pkgDir, 'generated-by-prepare.js')))
+  t.ok(await exists(path.resolve(pkgDir, 'generated-by-preinstall.js')))
+  t.ok(await exists(path.resolve(pkgDir, 'generated-by-postinstall.js')))
+})
+
 test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage(manifest, ['pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -68,7 +89,7 @@ test('testing that the bins are linked when the package with the bins was alread
 
 test('run install scripts', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['install-script-example'], await testDefaults())
+  await addDependenciesToPackage({}, ['install-script-example'], await testDefaults({ fastUnpack: false }))
 
   const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
@@ -78,12 +99,12 @@ test('run install scripts in the current project', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
-  }, ['json-append@1.1.1'], await testDefaults())
-  await install(manifest, await testDefaults())
+  }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
+  await install(manifest, await testDefaults({ fastUnpack: false }))
 
   const output = await loadJsonFile<string[]>('output.json')
 
@@ -95,12 +116,12 @@ test('run install scripts in the current project when its name is different than
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
-  }, ['json-append@1.1.1'], await testDefaults())
-  await install(manifest, await testDefaults())
+  }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
+  await install(manifest, await testDefaults({ fastUnpack: false }))
 
   const output = await loadJsonFile('output.json')
 
@@ -109,13 +130,13 @@ test('run install scripts in the current project when its name is different than
 
 test('do not run install scripts if unsafePerm is false', async (t: tape.Test) => {
   prepareEmpty(t)
-  const opts = await testDefaults({ unsafePerm: false })
+  const opts = await testDefaults({ fastUnpack: false, unsafePerm: false })
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
-      install: `node -e "process.stdout.write('install')" | json-append output.json`,
-      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
-      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
     },
   }, ['json-append@1.1.1'], opts)
   await install(manifest, opts)
@@ -133,37 +154,43 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
       scripts: {
         preinstall: 'exit 1',
       },
-    }, await testDefaults())
+    }, await testDefaults({ fastUnpack: false }))
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.code, 'ELIFECYCLE', 'failed with correct error code')
   }
 })
 
-// TODO: unskip
-// For some reason this fails on CI environments
-// tslint:disable-next-line:no-string-literal
-test['skip']('creates env for scripts', async (t: tape.Test) => {
+test('INIT_CWD is always set to lockfile directory', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({
-    scripts: {
-      install: `node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json`,
+  const rootDir = process.cwd()
+  await fs.mkdir('subd')
+  process.chdir('subd')
+  await mutateModules([
+    {
+      buildIndex: 0,
+      mutation: 'install',
+      manifest: {
+        dependencies: {
+          'json-append': '1.1.1',
+          'write-lifecycle-env': '1.0.0',
+        },
+        scripts: {
+          install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
+        },
+      },
+      rootDir,
     },
-  }, ['json-append@1.1.1'], await testDefaults())
-  await install(manifest, await testDefaults())
+  ], await testDefaults({
+    fastUnpack: false,
+    lockfileDir: rootDir,
+  }))
 
-  const output = await loadJsonFile('output.json')
+  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/write-lifecycle-env/env.json'))
+  t.equal(childEnv.INIT_CWD, rootDir)
 
+  const output = await loadJsonFile(path.join(rootDir, 'output.json'))
   t.deepEqual(output, [process.cwd()])
-})
-
-test('INIT_CWD is set correctly', async (t: tape.Test) => {
-  prepareEmpty(t)
-  await addDependenciesToPackage({}, ['write-lifecycle-env'], await testDefaults())
-
-  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
-
-  t.equal(childEnv.INIT_CWD, process.cwd())
 })
 
 // TODO: duplicate this test to @pnpm/lifecycle
@@ -172,17 +199,17 @@ test("reports child's output", async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage({}, ['count-to-10'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['count-to-10'], await testDefaults({ fastUnpack: false, reporter }))
 
   t.ok(reporter.calledWithMatch({
-    depPath: 'localhost+4873/count-to-10/1.0.0',
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: 'localhost+4873/count-to-10/1.0.0',
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
@@ -190,7 +217,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: 'localhost+4873/count-to-10/1.0.0',
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
@@ -198,7 +225,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: 'localhost+4873/count-to-10/1.0.0',
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
@@ -206,7 +233,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stderr',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: 'localhost+4873/count-to-10/1.0.0',
+    depPath: '/count-to-10/1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -224,7 +251,7 @@ test("reports child's close event", async (t: tape.Test) => {
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({
-      depPath: 'localhost+4873/failing-postinstall/1.0.0',
+      depPath: '/failing-postinstall/1.0.0',
       exitCode: 1,
       level: 'debug',
       name: 'pnpm:lifecycle',
@@ -247,7 +274,7 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
     .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
     .join(path.delimiter)
 
-  await addDependenciesToPackage({}, ['drivelist@5.1.8'], await testDefaults())
+  await addDependenciesToPackage({}, ['drivelist@5.1.8'], await testDefaults({ fastUnpack: false }))
 
   process.env[PATH] = initialPath
 
@@ -257,15 +284,15 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
 test('run lifecycle scripts of dependent packages after running scripts of their deps', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults())
+  await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false }))
 
-  t.ok(+project.requireModule('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['zkochan/install-scripts-example#prepare'], await testDefaults())
+  await addDependenciesToPackage({}, ['zkochan/install-scripts-example#prepare'], await testDefaults({ fastUnpack: false }))
 
   const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
   t.equal(scripts[0], 'preinstall')
@@ -280,7 +307,7 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
 test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['generated-bins'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['generated-bins'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
@@ -293,10 +320,10 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ frozenLockfile: true }),
+    await testDefaults({ frozenLockfile: true })
   )
 
   await project.isExecutable('.bin/cmd1')
@@ -304,9 +331,9 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
 })
 
 test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
+  prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
@@ -320,10 +347,10 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ frozenLockfile: true, hoistPattern: '*' }),
+    await testDefaults({ frozenLockfile: true, hoistPattern: '*' })
   )
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
@@ -341,7 +368,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
       'peer-with-bin',
       'pre-and-postinstall-scripts-example',
     ],
-    await testDefaults({ ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -359,10 +386,10 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
-      }
+        rootDir: process.cwd(),
+      },
     ],
-    await testDefaults({ frozenLockfile: true, ignoreScripts: true }),
+    await testDefaults({ frozenLockfile: true, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -384,7 +411,7 @@ test('dependency should not be added to current lockfile if it was not built suc
     await testDefaults({
       ignoreScripts: true,
       lockfileOnly: true,
-    }),
+    })
   )
 
   let err
@@ -395,10 +422,10 @@ test('dependency should not be added to current lockfile if it was not built suc
           buildIndex: 0,
           manifest,
           mutation: 'install',
-          prefix: process.cwd(),
+          rootDir: process.cwd(),
         },
       ],
-      await testDefaults({ frozenLockfile: true }),
+      await testDefaults({ frozenLockfile: true })
     )
   } catch (_err) {
     err = _err
@@ -414,8 +441,8 @@ test('scripts have access to unlisted bins when hoisting is used', async (t: tap
 
   await addDependenciesToPackage(
     {},
-    [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
-    await testDefaults({ hoistPattern: '*' }),
+    ['pkg-that-calls-unlisted-dep-in-hooks'],
+    await testDefaults({ fastUnpack: false, hoistPattern: '*' })
   )
 
   t.deepEqual(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json'), ['Hello world!'])

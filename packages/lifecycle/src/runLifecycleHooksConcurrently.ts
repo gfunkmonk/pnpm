@@ -1,19 +1,20 @@
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import runLifecycleHook from './runLifecycleHook'
+import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
+
+export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
+| 'depPath'
+| 'pkgRoot'
+| 'rootModulesDir'
+>
 
 export default async function runLifecycleHooksConcurrently (
   stages: string[],
-  importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string, modulesDir: string }>,
+  importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string, modulesDir: string }>,
   childConcurrency: number,
-  opts: {
-    extraBinPaths?: string[],
-    rawConfig: object,
-    stdio?: string,
-    unsafePerm: boolean,
-  },
+  opts: RunLifecycleHooksConcurrentlyOptions
 ) {
-  const importersByBuildIndex = new Map<number, Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>>()
+  const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
       importersByBuildIndex.set(importer.buildIndex, [importer])
@@ -23,17 +24,14 @@ export default async function runLifecycleHooksConcurrently (
   }
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
   const groups = sortedBuildIndexes.map((buildIndex) => {
-    const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>
-    return importers.map(({ manifest, modulesDir, prefix }) =>
+    const importers = importersByBuildIndex.get(buildIndex) as Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>
+    return importers.map(({ manifest, modulesDir, rootDir }) =>
       async () => {
         const runLifecycleHookOpts = {
-          depPath: prefix,
-          extraBinPaths: opts.extraBinPaths,
-          pkgRoot: prefix,
-          rawConfig: opts.rawConfig,
-          rootNodeModulesDir: modulesDir,
-          stdio: opts.stdio,
-          unsafePerm: opts.unsafePerm,
+          ...opts,
+          depPath: rootDir,
+          pkgRoot: rootDir,
+          rootModulesDir: modulesDir,
         }
         for (const stage of stages) {
           if (!manifest.scripts || !manifest.scripts[stage]) continue

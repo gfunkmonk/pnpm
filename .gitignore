@@ -4,8 +4,9 @@ logs
 npm-debug.log*
 
 # Dependency directory
-node_modules
+**/node_modules/**
 _node_modules
+.pnp.js
 
 # Coverage directory used by tools like istanbul
 coverage
@@ -14,6 +15,8 @@ coverage
 _docpress
 
 lib
+dist
+tsconfig.tsbuildinfo
 
 # Visual Studio Code configs
 .vscode/
@@ -30,3 +33,8 @@ __package_previews__
 .store
 
 privatePackages/store
+
+## Verdaccio storage
+storage
+
+yarn.lock

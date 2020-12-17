@@ -1,26 +1,26 @@
-import { importingLogger } from '@pnpm/core-loggers'
+import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import {
-  ImportPackageFunction,
-  PackageFilesResponse,
-} from '@pnpm/store-controller-types'
-import makeDir = require('make-dir')
-import fs = require('mz/fs')
-import ncpCB = require('ncp')
-import pLimit from 'p-limit'
+import importIndexedDir, { ImportFile } from '../fs/importIndexedDir'
 import path = require('path')
+import fs = require('mz/fs')
+import pLimit = require('p-limit')
 import exists = require('path-exists')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
-import { promisify } from 'util'
-import importIndexedDir from '../fs/importIndexedDir'
 
-const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
 
-export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): ImportPackageFunction => {
+interface ImportOptions {
+  filesMap: Record<string, string>
+  force: boolean
+  fromStore: boolean
+}
+
+type ImportFunction = (to: string, opts: ImportOptions) => Promise<string | undefined>
+
+export default (
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+): ImportFunction => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (from, to, opts) => limitLinking(() => importPackage(from, to, opts))
+  return (to, opts) => limitLinking(() => importPackage(to, opts))
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -29,69 +29,73 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   // - clone: clone the packages, no fallback
   // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
-  switch (packageImportMethod || 'auto') {
-    case 'clone':
-      return clonePkg
-    case 'hardlink':
-      return hardlinkPkg
-    case 'auto': {
-      return createAutoImporter()
-    }
-    case 'copy':
-      return copyPkg
-    default:
-      throw new Error(`Unknown package import method ${packageImportMethod}`)
+  switch (packageImportMethod ?? 'auto') {
+  case 'clone':
+    packageImportMethodLogger.debug({ method: 'clone' })
+    return clonePkg
+  case 'hardlink':
+    packageImportMethodLogger.debug({ method: 'hardlink' })
+    return hardlinkPkg.bind(null, linkOrCopy)
+  case 'auto': {
+    return createAutoImporter()
+  }
+  case 'copy':
+    packageImportMethodLogger.debug({ method: 'copy' })
+    return copyPkg
+  default:
+    throw new Error(`Unknown package import method ${packageImportMethod as string}`)
   }
 }
 
-function createAutoImporter () {
+function createAutoImporter (): ImportFunction {
   let auto = initialAuto
 
-  return auto
+  return (to, opts) => auto(to, opts)
 
   async function initialAuto (
-    from: string,
     to: string,
-    opts: {
-      filesResponse: PackageFilesResponse,
-      force: boolean,
-    },
-  ) {
+    opts: ImportOptions
+  ): Promise<string | undefined> {
     try {
-      await clonePkg(from, to, opts)
+      if (!await clonePkg(to, opts)) return undefined
+      packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
-      return
+      return 'clone'
     } catch (err) {
       // ignore
     }
     try {
-      await hardlinkPkg(from, to, opts)
-      auto = hardlinkPkg
-      return
+      if (!await hardlinkPkg(fs.link, to, opts)) return undefined
+      packageImportMethodLogger.debug({ method: 'hardlink' })
+      auto = hardlinkPkg.bind(null, linkOrCopy)
+      return 'hardlink'
     } catch (err) {
-      if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-      globalWarn(err.message)
-      globalInfo('Falling back to copying packages from store')
-      auto = copyPkg
-      await auto(from, to, opts)
+      if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
+        globalWarn(err.message)
+        globalInfo('Falling back to copying packages from store')
+        packageImportMethodLogger.debug({ method: 'copy' })
+        auto = copyPkg
+        return auto(to, opts)
+      }
+      // We still choose hard linking that will fall back to copying in edge cases.
+      packageImportMethodLogger.debug({ method: 'hardlink' })
+      auto = hardlinkPkg.bind(null, linkOrCopy)
+      return auto(to, opts)
     }
   }
 }
 
 async function clonePkg (
-  from: string,
   to: string,
-  opts: {
-    filesResponse: PackageFilesResponse,
-    force: boolean,
-  },
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'clone' })
-    await importIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    await importIndexedDir(cloneFile, to, opts.filesMap)
+    return 'clone'
   }
+  return undefined
 }
 
 async function cloneFile (from: string, to: string) {
@@ -99,27 +103,38 @@ async function cloneFile (from: string, to: string) {
 }
 
 async function hardlinkPkg (
-  from: string,
+  importFile: ImportFile,
   to: string,
-  opts: {
-    filesResponse: PackageFilesResponse,
-    force: boolean,
-  },
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
-    importingLogger.debug({ from, to, method: 'hardlink' })
-    await importIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
+    await importIndexedDir(importFile, to, opts.filesMap)
+    return 'hardlink'
+  }
+  return undefined
+}
+
+async function linkOrCopy (existingPath: string, newPath: string) {
+  try {
+    await fs.link(existingPath, newPath)
+  } catch (err) {
+    // If a hard link to the same file already exists
+    // then trying to copy it will make an empty file from it.
+    if (err['code'] === 'EEXIST') return
+    // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
+    // In that case, we just fall back to copying.
+    // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
+    await fs.copyFile(existingPath, newPath)
   }
 }
 
 async function pkgLinkedToStore (
   pkgJsonPath: string,
-  from: string,
-  to: string,
+  pkgJsonPathInStore: string,
+  to: string
 ) {
-  const pkgJsonPathInStore = path.join(from, 'package.json')
   if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
   globalInfo(`Relinking ${to} from the store`)
   return false
@@ -131,19 +146,14 @@ async function isSameFile (file1: string, file2: string) {
 }
 
 export async function copyPkg (
-  from: string,
   to: string,
-  opts: {
-    filesResponse: PackageFilesResponse,
-    force: boolean,
-  },
+  opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'copy' })
-    const staging = pathTemp(path.dirname(to))
-    await makeDir(staging)
-    await ncp(from + '/.', staging)
-    await renameOverwrite(staging, to)
+
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    await importIndexedDir(fs.copyFile, to, opts.filesMap)
+    return 'copy'
   }
+  return undefined
 }
